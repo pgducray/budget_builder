@@ -1,31 +1,36 @@
 """
-Module for transaction categorization logic.
+Main transaction categorization functionality.
 """
 from typing import List, Dict, Any, Optional
-import re
-from dataclasses import dataclass
-
-
-@dataclass
-class CategorizationRule:
-    """Data class for categorization rules."""
-    pattern: str
-    category_id: int
-    priority: int = 0
-    is_regex: bool = False
+from .rules import RuleBasedCategorizer
+from .ml import MLCategorizer
 
 
 class TransactionCategorizer:
-    """Handles transaction categorization using rules and text analysis."""
+    """
+    Main categorizer that combines rule-based and ML approaches.
 
-    def __init__(self, rules: List[CategorizationRule]):
+    The categorizer first attempts to match transactions using rules.
+    If no rule matches and ML categorization is enabled, it falls back
+    to ML-based prediction.
+    """
+
+    def __init__(
+        self,
+        db_manager,
+        enable_ml: bool = False,
+        model_path: Optional[str] = None
+    ):
         """
-        Initialize categorizer with rules.
+        Initialize categorizer.
 
         Args:
-            rules: List of categorization rules
+            db_manager: DatabaseManager instance
+            enable_ml: Whether to enable ML-based categorization
+            model_path: Optional path to ML model
         """
-        self.rules = sorted(rules, key=lambda x: x.priority, reverse=True)
+        self.rule_categorizer = RuleBasedCategorizer(db_manager)
+        self.ml_categorizer = MLCategorizer(model_path) if enable_ml else None
 
     def categorize_transaction(
         self,
@@ -44,7 +49,25 @@ class TransactionCategorizer:
         Returns:
             Category ID if match found, None otherwise
         """
-        pass
+        # Try rule-based categorization first
+        category_id = self.rule_categorizer.categorize(
+            description=description,
+            amount=amount,
+            vendor=vendor
+        )
+
+        # If no rule matches and ML is enabled, try ML prediction
+        if category_id is None and self.ml_categorizer:
+            predictions = self.ml_categorizer.predict_category(
+                description=description,
+                amount=amount,
+                vendor=vendor
+            )
+            if predictions:
+                # Use the category with highest confidence
+                category_id = max(predictions.items(), key=lambda x: x[1])[0]
+
+        return category_id
 
     def categorize_batch(
         self,
@@ -59,80 +82,54 @@ class TransactionCategorizer:
         Returns:
             Transactions with added category IDs
         """
-        pass
+        categorized = []
 
+        for transaction in transactions:
+            tx = transaction.copy()
+            category_id = self.categorize_transaction(
+                description=tx.get('description', ''),
+                amount=tx.get('amount', 0.0),
+                vendor=tx.get('vendor')
+            )
+            tx['category_id'] = category_id
+            categorized.append(tx)
 
-class TextAnalyzer:
-    """Handles text analysis for improved categorization."""
+        return categorized
 
-    def extract_keywords(self, text: str) -> List[str]:
+    @classmethod
+    def migrate_from_json(
+        cls,
+        db_manager,
+        json_path: str,
+        clear_existing: bool = False,
+        enable_ml: bool = False,
+        model_path: Optional[str] = None
+    ) -> "TransactionCategorizer":
         """
-        Extract relevant keywords from transaction description.
+        Create a categorizer and migrate rules from JSON.
 
         Args:
-            text: Transaction description
+            db_manager: DatabaseManager instance
+            json_path: Path to JSON file containing rules
+            clear_existing: Whether to clear existing rules
+            enable_ml: Whether to enable ML-based categorization
+            model_path: Optional path to ML model
 
         Returns:
-            List of extracted keywords
+            New TransactionCategorizer instance
         """
-        pass
+        # Create categorizer
+        categorizer = cls(
+            db_manager=db_manager,
+            enable_ml=enable_ml,
+            model_path=model_path
+        )
 
-    def normalize_vendor_name(self, vendor: str) -> str:
-        """
-        Normalize vendor name for consistent matching.
+        # Migrate rules
+        RuleBasedCategorizer.migrate_from_json(
+            db_manager=db_manager,
+            json_path=json_path,
+            clear_existing=clear_existing
+        )
 
-        Args:
-            vendor: Raw vendor name
-
-        Returns:
-            Normalized vendor name
-        """
-        pass
-
-
-class MLCategorizer:
-    """Optional ML-based categorization for handling edge cases."""
-
-    def __init__(self, model_path: Optional[str] = None):
-        """
-        Initialize ML categorizer.
-
-        Args:
-            model_path: Optional path to saved model
-        """
-        self.model = None
-        if model_path:
-            self.load_model(model_path)
-
-    def train(
-        self,
-        transactions: List[Dict[str, Any]],
-        categories: List[Dict[str, Any]]
-    ) -> None:
-        """
-        Train the ML model on categorized transactions.
-
-        Args:
-            transactions: Training data
-            categories: Category definitions
-        """
-        pass
-
-    def predict_category(
-        self,
-        description: str,
-        amount: float,
-        vendor: Optional[str] = None
-    ) -> Dict[str, float]:
-        """
-        Predict category probabilities for a transaction.
-
-        Args:
-            description: Transaction description
-            amount: Transaction amount
-            vendor: Optional vendor name
-
-        Returns:
-            Dictionary of category IDs to confidence scores
-        """
-        pass
+        return categorizer

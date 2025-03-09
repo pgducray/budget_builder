@@ -1,0 +1,369 @@
+"""
+Module for managing database operations.
+"""
+import logging
+from typing import List, Dict, Any, Optional
+import sqlite3
+from pathlib import Path
+from datetime import datetime
+
+class DatabaseManager:
+    """Handles all database operations for the finance tracker."""
+
+    def __init__(self, db_path: Path):
+        """
+        Initialize database connection and setup.
+
+        Args:
+            db_path: Path to SQLite database file
+        """
+        self.db_path = db_path
+
+    def initialize_database(self) -> None:
+        """Create database schema if it doesn't exist."""
+        logger = logging.getLogger(__name__)
+        logger.info(f"Initializing database at {self.db_path}")
+
+        queries = [
+            # Transactions table
+            """
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                transaction_date DATE NOT NULL,
+                description TEXT NOT NULL,
+                amount REAL NOT NULL,
+                reference_number TEXT,
+                category_id INTEGER,
+                account_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (category_id) REFERENCES categories (id),
+                FOREIGN KEY (account_id) REFERENCES accounts (id)
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_ref
+            ON transactions(reference_number)
+            WHERE reference_number IS NOT NULL;
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_date_desc
+            ON transactions(transaction_date, description)
+            WHERE reference_number IS NULL
+            """,
+
+            # Categories table
+            """
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                parent_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (parent_id) REFERENCES categories (id)
+            )
+            """,
+
+            # Accounts table
+            """
+            CREATE TABLE IF NOT EXISTS accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                type TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """,
+
+            # Categorization rules table
+            """
+            CREATE TABLE IF NOT EXISTS categorization_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pattern TEXT NOT NULL,
+                category_id INTEGER NOT NULL,
+                priority INTEGER DEFAULT 0,
+                is_regex BOOLEAN DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (category_id) REFERENCES categories (id)
+            )
+            """
+        ]
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("PRAGMA foreign_keys = ON;")
+                for query in queries:
+                    conn.executescript(query)
+                conn.commit()
+                logger.info("Database schema initialized successfully")
+        except sqlite3.Error as e:
+            logger.error(f"Error initializing database: {e}")
+            raise
+
+    def add_transactions(self, transactions: List[Dict[str, Any]]) -> None:
+        logger = logging.getLogger(__name__)
+        """
+        Add multiple transactions to the database.
+
+        Args:
+            transactions: List of transaction dictionaries with keys:
+                - transaction_date
+                - description
+                - amount
+                - reference_number (optional)
+                - category_id (optional)
+                - account_id (optional)
+        """
+        insert_query = """
+            INSERT OR IGNORE INTO transactions (
+                transaction_date,
+                description,
+                amount,
+                reference_number,
+                category_id,
+                account_id
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        """
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                for transaction in transactions:
+                    transaction_date_str = transaction['transaction_date'].strftime('%Y-%m-%d') if isinstance(transaction['transaction_date'], datetime) else transaction['transaction_date']
+                    conn.execute(
+                        insert_query,
+                        (
+                            transaction_date_str,
+                            transaction['description'],
+                            transaction['amount'],
+                            transaction.get('reference_number'),
+                            transaction.get('category_id'),
+                            transaction.get('account_id')
+                        )
+                    )
+                conn.commit()
+                logger.info(f"Added {len(transactions)} transactions to database")
+        except sqlite3.Error as e:
+            logger.error(f"Error adding transactions: {e}")
+            raise
+
+    def get_transactions(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        category_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve transactions based on filters.
+
+        Args:
+            start_date: Optional start date filter (YYYY-MM-DD)
+            end_date: Optional end date filter (YYYY-MM-DD)
+            category_id: Optional category filter
+
+        Returns:
+            List of transaction dictionaries
+        """
+        query = """
+            SELECT
+                id,
+                transaction_date,
+                description,
+                amount,
+                category_id,
+                account_id,
+                created_at
+            FROM transactions
+            WHERE 1=1
+        """
+        params = []
+
+        if start_date:
+            query += " AND transaction_date >= ?"
+            params.append(start_date)
+
+        if end_date:
+            query += " AND transaction_date <= ?"
+            params.append(end_date)
+
+        if category_id is not None:
+            query += " AND category_id = ?"
+            params.append(category_id)
+
+        query += " ORDER BY transaction_date DESC"
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(query, params)
+            return [dict(row) for row in cursor.fetchall()]
+
+    def add_categorization_rule(
+        self,
+        pattern: str,
+        category_id: int,
+        priority: int = 0,
+        is_regex: bool = False
+    ) -> None:
+        """
+        Add a new categorization rule.
+
+        Args:
+            pattern: Text pattern to match
+            category_id: ID of the category to assign
+            priority: Rule priority (higher numbers take precedence)
+            is_regex: Whether the pattern is a regular expression
+        """
+        logger = logging.getLogger(__name__)
+        query = """
+            INSERT INTO categorization_rules (
+                pattern,
+                category_id,
+                priority,
+                is_regex
+            ) VALUES (?, ?, ?, ?)
+        """
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(query, (pattern, category_id, priority, is_regex))
+                conn.commit()
+                logger.info(f"Added categorization rule: {pattern}")
+        except sqlite3.Error as e:
+            logger.error(f"Error adding categorization rule: {e}")
+            raise
+
+    def get_categorization_rules(self) -> List[Dict[str, Any]]:
+        """
+        Retrieve all categorization rules.
+
+        Returns:
+            List of rule dictionaries
+        """
+        query = """
+            SELECT
+                id,
+                pattern,
+                category_id,
+                priority,
+                is_regex,
+                created_at
+            FROM categorization_rules
+            ORDER BY priority DESC, created_at ASC
+        """
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(query)
+            return [dict(row) for row in cursor.fetchall()]
+
+    def update_categorization_rule(
+        self,
+        rule_id: int,
+        pattern: Optional[str] = None,
+        category_id: Optional[int] = None,
+        priority: Optional[int] = None,
+        is_regex: Optional[bool] = None
+    ) -> None:
+        """
+        Update an existing categorization rule.
+
+        Args:
+            rule_id: ID of the rule to update
+            pattern: New pattern (optional)
+            category_id: New category ID (optional)
+            priority: New priority (optional)
+            is_regex: New is_regex value (optional)
+        """
+        logger = logging.getLogger(__name__)
+        updates = []
+        params = []
+
+        if pattern is not None:
+            updates.append("pattern = ?")
+            params.append(pattern)
+        if category_id is not None:
+            updates.append("category_id = ?")
+            params.append(category_id)
+        if priority is not None:
+            updates.append("priority = ?")
+            params.append(priority)
+        if is_regex is not None:
+            updates.append("is_regex = ?")
+            params.append(is_regex)
+
+        if not updates:
+            return
+
+        query = f"""
+            UPDATE categorization_rules
+            SET {", ".join(updates)}
+            WHERE id = ?
+        """
+        params.append(rule_id)
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(query, params)
+                conn.commit()
+                logger.info(f"Updated categorization rule {rule_id}")
+        except sqlite3.Error as e:
+            logger.error(f"Error updating categorization rule: {e}")
+            raise
+
+    def delete_categorization_rule(self, rule_id: int) -> None:
+        """
+        Delete a categorization rule.
+
+        Args:
+            rule_id: ID of the rule to delete
+        """
+        logger = logging.getLogger(__name__)
+        query = "DELETE FROM categorization_rules WHERE id = ?"
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(query, (rule_id,))
+                conn.commit()
+                logger.info(f"Deleted categorization rule {rule_id}")
+        except sqlite3.Error as e:
+            logger.error(f"Error deleting categorization rule: {e}")
+            raise
+
+    def import_categorization_rules(
+        self,
+        rules: List[Dict[str, Any]],
+        clear_existing: bool = False
+    ) -> None:
+        """
+        Import multiple categorization rules.
+
+        Args:
+            rules: List of rule dictionaries
+            clear_existing: Whether to delete existing rules first
+        """
+        logger = logging.getLogger(__name__)
+
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                if clear_existing:
+                    conn.execute("DELETE FROM categorization_rules")
+
+                query = """
+                    INSERT INTO categorization_rules (
+                        pattern,
+                        category_id,
+                        priority,
+                        is_regex
+                    ) VALUES (?, ?, ?, ?)
+                """
+
+                for rule in rules:
+                    conn.execute(
+                        query,
+                        (
+                            rule["pattern"],
+                            rule["category_id"],
+                            rule.get("priority", 0),
+                            rule.get("is_regex", False)
+                        )
+                    )
+
+                conn.commit()
+                logger.info(f"Imported {len(rules)} categorization rules")
+        except sqlite3.Error as e:
+            logger.error(f"Error importing categorization rules: {e}")
+            raise

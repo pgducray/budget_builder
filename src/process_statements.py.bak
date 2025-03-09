@@ -1,0 +1,114 @@
+"""
+Script to process bank statements using the StatementLoader and DataCleaner.
+"""
+import logging
+from pathlib import Path
+from typing import List, Dict, Any
+
+import pandas as pd
+from pandas import DataFrame
+
+from data_processing.loader import StatementLoader
+from data_processing.processor import DataCleaner
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
+
+
+def report_validation_issues(issues: List[Dict[str, Any]]) -> None:
+    """
+    Report validation issues found in the data.
+
+    Args:
+        issues: List of validation issues to report
+    """
+    if not issues:
+        return
+
+    logger.warning("Validation issues found:")
+    for issue in issues:
+        if issue['type'] == 'missing_values':
+            logger.warning(
+                f"  - {issue['count']} missing values in column '{issue['column']}'"
+            )
+        else:
+            logger.warning(f"  - {issue['message']}")
+
+
+def process_statement(
+    file_path: Path,
+    loader: StatementLoader,
+    cleaner: DataCleaner
+) -> DataFrame:
+    """
+    Process a single bank statement file.
+
+    Args:
+        file_path: Path to the statement file
+        loader: StatementLoader instance
+        cleaner: DataCleaner instance
+
+    Returns:
+        Processed DataFrame
+
+    Raises:
+        ValueError: If the file cannot be loaded or processed
+    """
+    # Load the statement
+    df = loader.load_statement(file_path)
+
+    # Clean and process the data
+    df = (df
+          .pipe(cleaner.standardize_columns)
+          .pipe(cleaner.clean_transaction_descriptions)
+          .pipe(cleaner.deduplicate_transactions))
+
+    return df
+
+
+def main() -> None:
+    """Process all bank statements in the raw directory."""
+    # Initialize loader and cleaner
+    loader = StatementLoader()
+    cleaner = DataCleaner()
+
+    # Setup directories
+    raw_dir = Path("data/raw")
+    processed_dir = Path("data/processed")
+    processed_dir.mkdir(exist_ok=True, parents=True)
+
+    if not raw_dir.exists():
+        logger.error(f"Raw directory not found: {raw_dir}")
+
+        return
+
+    # Process each file
+    for file_path in raw_dir.glob("*.pdf"):  # Process PDF files
+        logger.info(f"Processing {file_path.name}...")
+
+        try:
+            # Process the statement
+            df = process_statement(file_path, loader, cleaner)
+
+            # Validate the data
+            issues = cleaner.validate_data(df)
+            report_validation_issues(issues)
+
+            # Save to processed directory
+            output_path = processed_dir / f"processed_{file_path.stem}.csv"
+            df.to_csv(output_path, index=False)
+            logger.info(f"Saved processed file to {output_path}")
+
+        except ValueError as e:
+            logger.error(f"Error processing {file_path.name}: {str(e)}")
+        except Exception as e:
+            logger.exception(f"Unexpected error processing {file_path.name}")
+
+
+if __name__ == "__main__":
+    main()

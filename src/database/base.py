@@ -1,13 +1,13 @@
 """
-Module for managing database operations.
+Base database manager functionality.
 """
-from typing import List, Dict, Any, Optional
+import logging
 import sqlite3
 from pathlib import Path
 
 
-class DatabaseManager:
-    """Handles all database operations for the finance tracker."""
+class BaseDatabaseManager:
+    """Base class for database operations."""
 
     def __init__(self, db_path: Path):
         """
@@ -20,6 +20,9 @@ class DatabaseManager:
 
     def initialize_database(self) -> None:
         """Create database schema if it doesn't exist."""
+        logger = logging.getLogger(__name__)
+        logger.info(f"Initializing database at {self.db_path}")
+
         queries = [
             # Transactions table
             """
@@ -27,13 +30,22 @@ class DatabaseManager:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 transaction_date DATE NOT NULL,
                 description TEXT NOT NULL,
-                amount DECIMAL(10,2) NOT NULL,
+                amount REAL NOT NULL,
+                reference_number TEXT,
                 category_id INTEGER,
                 account_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (category_id) REFERENCES categories (id),
                 FOREIGN KEY (account_id) REFERENCES accounts (id)
-            )
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_ref
+            ON transactions(reference_number)
+            WHERE reference_number IS NOT NULL;
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_date_desc
+            ON transactions(transaction_date, description)
+            WHERE reference_number IS NULL
             """,
 
             # Categories table
@@ -70,59 +82,14 @@ class DatabaseManager:
             )
             """
         ]
-        pass
 
-    def add_transactions(self, transactions: List[Dict[str, Any]]) -> None:
-        """
-        Add multiple transactions to the database.
-
-        Args:
-            transactions: List of transaction dictionaries
-        """
-        pass
-
-    def get_transactions(
-        self,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        category_id: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Retrieve transactions based on filters.
-
-        Args:
-            start_date: Optional start date filter
-            end_date: Optional end date filter
-            category_id: Optional category filter
-
-        Returns:
-            List of transaction dictionaries
-        """
-        pass
-
-    def add_categorization_rule(
-        self,
-        pattern: str,
-        category_id: int,
-        priority: int = 0,
-        is_regex: bool = False
-    ) -> None:
-        """
-        Add a new categorization rule.
-
-        Args:
-            pattern: Text pattern to match
-            category_id: ID of the category to assign
-            priority: Rule priority (higher numbers take precedence)
-            is_regex: Whether the pattern is a regular expression
-        """
-        pass
-
-    def get_categorization_rules(self) -> List[Dict[str, Any]]:
-        """
-        Retrieve all categorization rules.
-
-        Returns:
-            List of rule dictionaries
-        """
-        pass
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("PRAGMA foreign_keys = ON;")
+                for query in queries:
+                    conn.executescript(query)
+                conn.commit()
+                logger.info("Database schema initialized successfully")
+        except sqlite3.Error as e:
+            logger.error(f"Error initializing database: {e}")
+            raise

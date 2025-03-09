@@ -38,6 +38,7 @@ ENV/
 # Data files
 data/raw/*
 data/processed/*
+data/
 *.csv
 *.xlsx
 *.db

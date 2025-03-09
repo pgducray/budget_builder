@@ -1,0 +1,64 @@
+{
+  "rules": [
+    {
+      "pattern": "NETFLIX",
+      "category_id": 1,
+      "priority": 100,
+      "is_regex": false
+    },
+    {
+      "pattern": "SPOTIFY",
+      "category_id": 1,
+      "priority": 100,
+      "is_regex": false
+    },
+    {
+      "pattern": "^AMZN",
+      "category_id": 2,
+      "priority": 90,
+      "is_regex": true
+    },
+    {
+      "pattern": "UBER",
+      "category_id": 3,
+      "priority": 90,
+      "is_regex": false
+    },
+    {
+      "pattern": "LYFT",
+      "category_id": 3,
+      "priority": 90,
+      "is_regex": false
+    },
+    {
+      "pattern": "GROCERY|SUPERMARKET",
+      "category_id": 4,
+      "priority": 80,
+      "is_regex": true
+    },
+    {
+      "pattern": "RESTAURANT|CAFE|COFFEE",
+      "category_id": 5,
+      "priority": 70,
+      "is_regex": true
+    },
+    {
+      "pattern": "INSURANCE",
+      "category_id": 6,
+      "priority": 100,
+      "is_regex": false
+    },
+    {
+      "pattern": "RENT|MORTGAGE",
+      "category_id": 7,
+      "priority": 100,
+      "is_regex": true
+    },
+    {
+      "pattern": "UTILITY|WATER|ELECTRIC|GAS",
+      "category_id": 8,
+      "priority": 90,
+      "is_regex": true
+    }
+  ]
+}
