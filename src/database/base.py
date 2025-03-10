@@ -23,32 +23,9 @@ class BaseDatabaseManager:
         logger = logging.getLogger(__name__)
         logger.info(f"Initializing database at {self.db_path}")
 
+        # Create tables and indexes
         queries = [
-            # Transactions table
-            """
-            CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                transaction_date DATE NOT NULL,
-                description TEXT NOT NULL,
-                amount REAL NOT NULL,
-                reference_number TEXT,
-                category_id INTEGER,
-                account_id INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (category_id) REFERENCES categories (id),
-                FOREIGN KEY (account_id) REFERENCES accounts (id)
-            );
-
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_ref
-            ON transactions(reference_number)
-            WHERE reference_number IS NOT NULL;
-
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_date_desc
-            ON transactions(transaction_date, description)
-            WHERE reference_number IS NULL
-            """,
-
-            # Categories table
+            # Categories table with self-reference
             """
             CREATE TABLE IF NOT EXISTS categories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,15 +35,9 @@ class BaseDatabaseManager:
                 FOREIGN KEY (parent_id) REFERENCES categories (id)
             )
             """,
-
-            # Accounts table
             """
-            CREATE TABLE IF NOT EXISTS accounts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                type TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+            CREATE INDEX IF NOT EXISTS idx_categories_parent
+            ON categories(parent_id)
             """,
 
             # Categorization rules table
@@ -80,6 +51,41 @@ class BaseDatabaseManager:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (category_id) REFERENCES categories (id)
             )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_rules_category
+            ON categorization_rules(category_id)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_rules_pattern
+            ON categorization_rules(pattern)
+            """,
+
+            # Transactions table
+            """
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date DATE NOT NULL,
+                description TEXT NOT NULL,
+                amount REAL NOT NULL,
+                category_id INTEGER,
+                rule_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (category_id) REFERENCES categories (id),
+                FOREIGN KEY (rule_id) REFERENCES categorization_rules (id)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_transactions_date
+            ON transactions(date)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_transactions_category
+            ON transactions(category_id)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_transactions_rule
+            ON transactions(rule_id)
             """
         ]
 
@@ -87,7 +93,7 @@ class BaseDatabaseManager:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("PRAGMA foreign_keys = ON;")
                 for query in queries:
-                    conn.executescript(query)
+                    conn.execute(query)
                 conn.commit()
                 logger.info("Database schema initialized successfully")
         except sqlite3.Error as e:

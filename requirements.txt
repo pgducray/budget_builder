@@ -16,3 +16,4 @@ jupyter>=1.0.0
 camelot-py[cv]>=0.11.0
 opencv-python>=4.8.0
 ghostscript>=0.7.0
+streamlit>=1.28.0

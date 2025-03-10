@@ -1,25 +1,18 @@
 """
-Transaction categorization module.
-
-This module provides functionality for automatically categorizing
-financial transactions using a combination of rule-based matching
-and optional machine learning approaches.
-
-Main Components:
-- TransactionCategorizer: Main entry point that combines all approaches
-- RuleBasedCategorizer: Rule-based categorization
-- MLCategorizer: Machine learning based categorization
-- TextAnalyzer: Text analysis utilities
+Transaction categorization package.
 """
-from .categorizer import TransactionCategorizer
+from .pattern_detector import PatternDetector, RuleSuggestion
 from .rules import RuleBasedCategorizer, CategorizationRule
-from .ml import MLCategorizer
 from .text import TextAnalyzer
+from .interactive import InteractiveCategorizer, TransactionReview, ReviewSession
 
 __all__ = [
-    "TransactionCategorizer",
-    "RuleBasedCategorizer",
-    "CategorizationRule",
-    "MLCategorizer",
-    "TextAnalyzer"
+    'PatternDetector',
+    'RuleSuggestion',
+    'RuleBasedCategorizer',
+    'CategorizationRule',
+    'TextAnalyzer',
+    'InteractiveCategorizer',
+    'TransactionReview',
+    'ReviewSession'
 ]

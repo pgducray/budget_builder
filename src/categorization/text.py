@@ -61,9 +61,14 @@ class TextAnalyzer:
         for suffix in self.business_suffixes:
             normalized = re.sub(rf'\b{suffix}\b\.?', '', normalized)
 
-        # Remove special characters and extra spaces
-        normalized = re.sub(r'[^\w\s]', ' ', normalized)
+        # Replace special characters with spaces, but keep * for compound patterns
+        normalized = re.sub(r'[^\w\s\*]', ' ', normalized)
         normalized = re.sub(r'\s+', ' ', normalized)
+
+        # Special handling for compound patterns (e.g., UBER*EATS)
+        if '*' in normalized:
+            parts = normalized.split('*')
+            normalized = ' '.join(parts)
 
         return normalized.strip()
 
@@ -95,8 +100,8 @@ class TextAnalyzer:
             for keyword in keywords:
                 keyword_counts[keyword] = keyword_counts.get(keyword, 0) + 1
 
-        # Return patterns that appear in at least 10% of transactions
-        min_occurrences = max(2, len(descriptions) // 10)
+        # Return patterns that appear in at least 20% of transactions
+        min_occurrences = max(2, len(descriptions) // 5)
         common_patterns = [
             keyword
             for keyword, count in keyword_counts.items()
@@ -133,7 +138,7 @@ class TextAnalyzer:
                     prefixes[prefix] = prefixes.get(prefix, 0) + 1
 
         # Add common prefixes as patterns
-        min_occurrences = max(2, len(descriptions) // 10)
+        min_occurrences = max(2, len(descriptions) // 5)
         for prefix, count in prefixes.items():
             if count >= min_occurrences:
                 patterns.append(f"^{prefix}")

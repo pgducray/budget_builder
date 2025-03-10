@@ -1,1 +1,3 @@
-# Main package initialization
+"""
+Budget Builder package.
+"""

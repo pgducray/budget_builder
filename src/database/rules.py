@@ -1,14 +1,14 @@
 """
-Categorization rule database operations.
+Rule-related database operations.
 """
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import sqlite3
 from .base import BaseDatabaseManager
 
 
 class RuleManager(BaseDatabaseManager):
-    """Handles categorization rule database operations."""
+    """Handles rule-related database operations."""
 
     def add_rule(
         self,
@@ -21,10 +21,10 @@ class RuleManager(BaseDatabaseManager):
         Add a new categorization rule.
 
         Args:
-            pattern: Text pattern to match
-            category_id: ID of the category to assign
-            priority: Rule priority (higher numbers take precedence)
-            is_regex: Whether the pattern is a regular expression
+            pattern: Rule pattern to match
+            category_id: Category ID to assign
+            priority: Rule priority (higher numbers = higher priority)
+            is_regex: Whether pattern is a regular expression
 
         Returns:
             ID of the newly created rule
@@ -48,67 +48,53 @@ class RuleManager(BaseDatabaseManager):
                 )
                 rule_id = cursor.fetchone()[0]
                 conn.commit()
-                logger.info(f"Added categorization rule: {pattern} (ID: {rule_id})")
+                logger.info(f"Added rule: {pattern} (ID: {rule_id})")
                 return rule_id
         except sqlite3.Error as e:
-            logger.error(f"Error adding categorization rule: {e}")
+            logger.error(f"Error adding rule: {e}")
             raise
 
-    def get_rules(
-        self,
-        category_id: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+    def get_rules(self) -> List[Dict[str, Any]]:
         """
-        Retrieve categorization rules.
-
-        Args:
-            category_id: Optional category filter
+        Retrieve all categorization rules.
 
         Returns:
             List of rule dictionaries
         """
         query = """
             SELECT
-                r.id,
-                r.pattern,
-                r.category_id,
-                c.name as category_name,
-                r.priority,
-                r.is_regex,
-                r.created_at
-            FROM categorization_rules r
-            JOIN categories c ON r.category_id = c.id
+                id,
+                pattern,
+                category_id,
+                priority,
+                is_regex,
+                created_at
+            FROM categorization_rules
+            ORDER BY priority DESC, created_at DESC
         """
-        params = []
-
-        if category_id is not None:
-            query += " WHERE r.category_id = ?"
-            params.append(category_id)
-
-        query += " ORDER BY r.priority DESC, r.created_at ASC"
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute(query, params)
+            cursor = conn.execute(query)
             return [dict(row) for row in cursor.fetchall()]
 
     def update_rule(
         self,
         rule_id: int,
-        pattern: Optional[str] = None,
-        category_id: Optional[int] = None,
-        priority: Optional[int] = None,
-        is_regex: Optional[bool] = None
+        pattern: str = None,
+        category_id: int = None,
+        priority: int = None,
+        is_regex: bool = None
     ) -> None:
         """
-        Update an existing rule.
+        Update a categorization rule.
 
         Args:
             rule_id: ID of the rule to update
             pattern: New pattern (optional)
             category_id: New category ID (optional)
             priority: New priority (optional)
-            is_regex: New is_regex value (optional)
+            is_regex: New regex flag (optional)
         """
         logger = logging.getLogger(__name__)
         updates = []
@@ -141,14 +127,14 @@ class RuleManager(BaseDatabaseManager):
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(query, params)
                 conn.commit()
-                logger.info(f"Updated categorization rule {rule_id}")
+                logger.info(f"Updated rule {rule_id}")
         except sqlite3.Error as e:
-            logger.error(f"Error updating categorization rule: {e}")
+            logger.error(f"Error updating rule: {e}")
             raise
 
     def delete_rule(self, rule_id: int) -> None:
         """
-        Delete a rule.
+        Delete a categorization rule.
 
         Args:
             rule_id: ID of the rule to delete
@@ -160,9 +146,9 @@ class RuleManager(BaseDatabaseManager):
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(query, (rule_id,))
                 conn.commit()
-                logger.info(f"Deleted categorization rule {rule_id}")
+                logger.info(f"Deleted rule {rule_id}")
         except sqlite3.Error as e:
-            logger.error(f"Error deleting categorization rule: {e}")
+            logger.error(f"Error deleting rule: {e}")
             raise
 
     def import_rules(
@@ -171,11 +157,11 @@ class RuleManager(BaseDatabaseManager):
         clear_existing: bool = False
     ) -> None:
         """
-        Import multiple rules.
+        Import rules from a list.
 
         Args:
             rules: List of rule dictionaries
-            clear_existing: Whether to delete existing rules first
+            clear_existing: Whether to clear existing rules first
         """
         logger = logging.getLogger(__name__)
 
@@ -184,18 +170,16 @@ class RuleManager(BaseDatabaseManager):
                 if clear_existing:
                     conn.execute("DELETE FROM categorization_rules")
 
-                query = """
-                    INSERT INTO categorization_rules (
-                        pattern,
-                        category_id,
-                        priority,
-                        is_regex
-                    ) VALUES (?, ?, ?, ?)
-                """
-
                 for rule in rules:
                     conn.execute(
-                        query,
+                        """
+                        INSERT INTO categorization_rules (
+                            pattern,
+                            category_id,
+                            priority,
+                            is_regex
+                        ) VALUES (?, ?, ?, ?)
+                        """,
                         (
                             rule["pattern"],
                             rule["category_id"],
@@ -203,9 +187,8 @@ class RuleManager(BaseDatabaseManager):
                             rule.get("is_regex", False)
                         )
                     )
-
                 conn.commit()
-                logger.info(f"Imported {len(rules)} categorization rules")
+                logger.info(f"Imported {len(rules)} rules")
         except sqlite3.Error as e:
-            logger.error(f"Error importing categorization rules: {e}")
+            logger.error(f"Error importing rules: {e}")
             raise

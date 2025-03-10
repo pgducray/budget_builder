@@ -37,8 +37,8 @@ class RuleBasedCategorizer:
             CategorizationRule(
                 pattern=rule["pattern"],
                 category_id=rule["category_id"],
-                priority=rule["priority"],
-                is_regex=rule["is_regex"]
+                priority=rule.get("priority", 0),
+                is_regex=rule.get("is_regex", False)
             )
             for rule in db_rules
         ]
@@ -71,7 +71,7 @@ class RuleBasedCategorizer:
             text_to_match = normalized_desc
 
         # Check each rule in priority order
-        for rule in self.rules:
+        for rule in sorted(self.rules, key=lambda x: x.priority, reverse=True):
             if rule.is_regex:
                 if re.search(rule.pattern, text_to_match, re.IGNORECASE):
                     return rule.category_id
@@ -110,33 +110,3 @@ class RuleBasedCategorizer:
             categorized_transactions.append(tx)
 
         return categorized_transactions
-
-    @classmethod
-    def migrate_from_json(
-        cls,
-        db_manager,
-        json_path: str,
-        clear_existing: bool = False
-    ) -> "RuleBasedCategorizer":
-        """
-        Migrate rules from JSON file to database.
-
-        Args:
-            db_manager: DatabaseManager instance
-            json_path: Path to JSON file containing rules
-            clear_existing: Whether to clear existing rules
-
-        Returns:
-            New RuleBasedCategorizer instance
-        """
-        import json
-
-        with open(json_path, "r") as f:
-            config = json.load(f)
-
-        db_manager.import_rules(
-            rules=config.get("rules", []),
-            clear_existing=clear_existing
-        )
-
-        return cls(db_manager)
