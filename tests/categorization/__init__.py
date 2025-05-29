@@ -1,3 +1,0 @@
-"""
-Categorization tests package.
-"""
