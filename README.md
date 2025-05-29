@@ -1,192 +1,105 @@
-# Personal Finance Tracker
+# Budget Builder
 
-A Python-based tool for analyzing bank statements, automating transaction categorization, and providing financial insights.
+A Python tool to process bank transactions and categorize them based on patterns.
 
 ## Features
 
-- **Automated Statement Processing**: Convert bank statements to structured data
-- **Smart Transaction Categorization**:
-  - Rule-based matching with priority levels
-  - Text analysis and vendor normalization
-  - Optional ML-based categorization
-  - Database-backed rule storage
-- **Financial Analysis**: Generate insights and visualizations
-- **SQLite Database**: Efficient and reliable data storage
+- PDF bank statement processing (MCB bank statements)
+- Robust transaction extraction with duplicate detection
+- Unified transaction database in CSV format
+- Pattern-based transaction categorization
+- Transaction summary by category
 
 ## Project Structure
 
 ```
 budget_builder/
-├── src/
-│   ├── data_processing/   # Statement processing
-│   │   ├── __init__.py
-│   │   ├── loader.py      # Statement parsing
-│   │   └── process_statements.py
-│   │
-│   ├── database/         # Database operations
-│   │   ├── __init__.py   # Unified DatabaseManager
-│   │   ├── base.py       # Base functionality
-│   │   ├── transactions.py
-│   │   ├── categories.py
-│   │   └── rules.py
-│   │
-│   ├── categorization/   # Transaction categorization
-│   │   ├── __init__.py   # Public interface
-│   │   ├── categorizer.py # Main categorizer
-│   │   ├── rules.py      # Rule-based logic
-│   │   ├── text.py       # Text analysis
-│   │   └── ml.py         # ML categorization
-│   │
-│   ├── analytics/        # Financial analysis
-│   │   ├── __init__.py
-│   │   └── analyzer.py
-│   │
-│   └── utils/           # Utility functions
-│
-├── tests/               # Test files mirroring src/
+├── config/
+│   ├── categorization_rules.json  # Transaction categorization rules
+│   └── default_config.json       # Default configuration
 ├── data/
-│   ├── raw/            # Original bank statements
-│   └── processed/      # Cleaned data
-├── config/             # Configuration files
-├── notebooks/          # Jupyter notebooks
-├── docker/            # Docker configuration
-├── requirements.txt    # Python dependencies
-└── README.md
+│   ├── raw/          # Place new PDF bank statements here
+│   ├── processed/    # Processed PDFs are moved here
+│   ├── transactions.csv        # Unified transaction database
+│   └── categorized_transactions.csv  # Final categorized output
+└── src/
+    ├── data_processing/
+    │   ├── extract_data.py     # PDF data extraction
+    │   └── process_all_statements.py  # Process PDFs & maintain database
+    ├── categorization/
+    │   └── simple_categorizer.py  # Transaction categorizer
+    └── categorize_transactions.py # Main categorization script
 ```
 
-## Setup Instructions
+## Setup
 
 1. Create a Python virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
 2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Initialize the database:
-   ```python
-   from pathlib import Path
-   from database import DatabaseManager
-
-   db = DatabaseManager(Path("data/finance.db"))
-   db.initialize_database()
-   ```
-
-## Usage Examples
-
-### Process Bank Statements
-
-```python
-from pathlib import Path
-from data_processing.loader import StatementLoader
-from database import DatabaseManager
-
-# Initialize components
-loader = StatementLoader()
-db = DatabaseManager(Path("data/finance.db"))
-
-# Process statements
-for file_path in Path("data/raw").glob("*.pdf"):
-    process_statement(file_path, loader, db)
-```
-
-### Transaction Categorization
-
-```python
-from categorization import TransactionCategorizer
-from database import DatabaseManager
-
-# Initialize components
-db = DatabaseManager(Path("data/finance.db"))
-categorizer = TransactionCategorizer(db)
-
-# Add categorization rules
-categorizer.add_rule(
-    pattern="NETFLIX",
-    category_id=1,  # Entertainment
-    priority=100
-)
-
-# Categorize transactions
-transactions = db.get_transactions()
-categorized = categorizer.categorize_batch(transactions)
-```
-
-### Rule Management
-
-```python
-# Import rules from JSON
-categorizer = TransactionCategorizer.migrate_from_json(
-    db_manager=db,
-    json_path="config/categorization_rules.json",
-    clear_existing=True
-)
-
-# Add new rules
-db.add_rule(
-    pattern="^AMZN",
-    category_id=2,  # Shopping
-    priority=90,
-    is_regex=True
-)
-```
-
-## Development Workflow
-
-1. Data Processing:
-   - Place bank statements in `data/raw/`
-   - Run `process_statements.py`
-   - Data is stored in SQLite database
-
-2. Transaction Categorization:
-   - Define rules in database or import from JSON
-   - Process transactions using rules
-   - Optionally train ML model for edge cases
-
-3. Analysis:
-   - Generate insights and visualizations
-   - Export reports as needed
-
-## Testing
-
-Run tests using pytest:
 ```bash
-pytest tests/
+pip install -r requirements.txt
 ```
 
-## Docker Support
-
-Build and run using Docker:
+3. Create required directories:
 ```bash
-docker build -t finance-tracker .
-docker run finance-tracker
+make setup
 ```
 
-## Architecture
+## Usage
 
-The system uses a modular architecture with clear separation of concerns:
+### Available Make Commands
 
-1. **Database Layer** (`src/database/`):
-   - Handles all data persistence
-   - ACID compliant with SQLite
-   - Separate managers for different entities
+The project includes a Makefile for common operations:
 
-2. **Categorization Engine** (`src/categorization/`):
-   - Rule-based matching with priorities
-   - Text analysis and normalization
-   - Optional ML-based categorization
-   - Clean interface through TransactionCategorizer
+- `make setup` - Create required directories
+- `make process` - Process all statements in data/raw
+- `make categorize` - Process statements and categorize transactions
+- `make clean` - Remove processed files
+- `make validate` - Check if required directories exist
+- `make help` - Show available commands
 
-3. **Data Processing** (`src/data_processing/`):
-   - Statement parsing and normalization
-   - Data cleaning and validation
-   - Direct database integration
+### Processing and Categorizing Transactions
 
-4. **Analytics** (`src/analytics/`):
-   - Financial analysis and insights
-   - Visualization capabilities
-   - Budget tracking and recommendations
+1. Place your MCB bank statement PDF files in the `data/raw` directory
+2. Run the processor and categorizer:
+```bash
+make categorize
+```
+
+This will:
+- Validate required directories exist
+- Extract transactions from PDFs in data/raw
+- Move processed PDFs to data/processed
+- Update the unified transactions.csv database
+- Remove any duplicates
+- Categorize all transactions based on patterns
+- Generate a category summary
+- Save categorized transactions to data/categorized_transactions.csv
+
+You can also run just the processing step without categorization using:
+```bash
+make process
+```
+
+## Categorization Rules
+
+Transactions are categorized based on:
+1. Transaction type patterns (e.g., "Salary" → Income)
+2. Merchant name patterns (e.g., "COFFEE" → Coffee Shops)
+3. Default fallback to "Uncategorized"
+
+Current categories include:
+- Income
+- Coffee Shops
+- Restaurants
+- Groceries
+- Shopping
+- Cash Withdrawal
+- Transfer
+- Uncategorized
+
+You can customize the categorization rules by modifying `config/categorization_rules.json`.
