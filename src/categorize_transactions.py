@@ -18,8 +18,11 @@ def main():
         df = pd.read_csv(transactions_path)
         print(f"\nLoaded {len(df)} transactions")
 
-        # Initialize categorizer
-        categorizer = SimpleTransactionCategorizer()
+        # Initialize categorizer with patterns file if it exists
+        patterns_path = Path("data/patterns.json")
+        categorizer = SimpleTransactionCategorizer(
+            SimpleTransactionCategorizer.load_patterns(patterns_path)
+        )
 
         # Categorize transactions
         categorized_df = categorizer.categorize_transactions(df)
