@@ -38,18 +38,37 @@ CHART_CONFIG = {
         }
     },
     'bar': {
-        'figure': {
-            'title': "Transaction Frequency and Amounts",
+        'trace': {  # Changed from 'figure' to 'trace'
             'height': 400,
-            'width': None,  # Use container width
-            'barmode': 'group',
+            'width': None  # Use container width
+        },
+        'layout': {
+            'height': 400,
+            'showlegend': True,
+            'margin': {'l': 150},  # Add left margin for category labels
             'xaxis': {
-                'title': "Transaction Description",
+                'title': "Amount (Rs)",
+                'showgrid': True,
                 'tickangle': -45
             },
             'yaxis': {
-                'title': "Count / Amount"
+                'title': "Category",
+                'showgrid': True
             }
+        }
+    },
+    'line': {
+        'layout': {
+            'height': 400,
+            'showlegend': True,
+            'xaxis': {
+                'title': None,
+                'showgrid': True
+            },
+            'yaxis': {
+                'showgrid': True
+            },
+            'hovermode': 'x unified'
         }
     }
 }
