@@ -38,7 +38,7 @@ CHART_CONFIG = {
         }
     },
     'bar': {
-        'trace': {  # Changed from 'figure' to 'trace'
+        'figure': {
             'height': 400,
             'width': None  # Use container width
         },
