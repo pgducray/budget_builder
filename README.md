@@ -1,34 +1,47 @@
 # Budget Builder
 
-A Python tool to process bank transactions and categorize them based on patterns.
+A Python tool to process bank transactions and categorize them based on patterns, with a Streamlit GUI for analysis and visualization.
 
 ## Features
 
 - PDF bank statement processing (MCB bank statements)
 - Robust transaction extraction with duplicate detection
 - Unified transaction database in CSV format
-- Pattern-based transaction categorization
+- Pattern-based transaction categorization using regex patterns
+- Interactive Streamlit GUI for analysis and budget review
+- Jupyter notebook workflow for pattern optimization
 - Transaction summary by category
 
 ## Project Structure
 
 ```
 budget_builder/
-├── config/
-│   ├── categorization_rules.json  # Transaction categorization rules
-│   └── default_config.json       # Default configuration
 ├── data/
-│   ├── raw/          # Place new PDF bank statements here
-│   ├── processed/    # Processed PDFs are moved here
+│   ├── raw/                    # Place new PDF bank statements here
+│   ├── processed/              # Processed PDFs are moved here
 │   ├── transactions.csv        # Unified transaction database
-│   └── categorized_transactions.csv  # Final categorized output
-└── src/
-    ├── data_processing/
-    │   ├── extract_data.py     # PDF data extraction
-    │   └── process_all_statements.py  # Process PDFs & maintain database
-    ├── categorization/
-    │   └── simple_categorizer.py  # Transaction categorizer
-    └── categorize_transactions.py # Main categorization script
+│   ├── categorized_transactions.csv  # Final categorized output
+│   └── patterns.json           # Regex patterns for categorization
+├── pages/
+│   ├── 1_Analysis.py          # Transaction analysis page
+│   ├── 2_Pattern_Management.py # Pattern management interface
+│   └── 3_Budget_Review.py     # Budget review and insights
+├── src/
+│   ├── categorization/
+│   │   ├── __init__.py
+│   │   └── simple_categorizer.py    # Transaction categorizer
+│   ├── data_processing/
+│   │   ├── __init__.py
+│   │   ├── extract_data.py          # PDF data extraction
+│   │   └── process_all_statements.py # Process PDFs & maintain database
+│   ├── shared/
+│   │   └── components.py            # Shared UI components
+│   ├── analysis.py                  # Analysis functions
+│   ├── categorize_transactions.py   # Main categorization script
+│   ├── config.py                    # Configuration settings
+│   ├── refine_patterns.py          # Pattern refinement utilities
+│   └── utils.py                     # Utility functions
+└── gui.py                          # Main Streamlit application
 ```
 
 ## Setup
@@ -80,26 +93,54 @@ This will:
 - Generate a category summary
 - Save categorized transactions to data/categorized_transactions.csv
 
-You can also run just the processing step without categorization using:
+### Using the Streamlit Interface
+
+Launch the Streamlit application:
 ```bash
-make process
+streamlit run gui.py
 ```
 
-## Categorization Rules
+The interface provides:
+1. Transaction Analysis - View and analyze your transaction history
+2. Pattern Management - Manage categorization patterns
+3. Budget Review - Review your spending patterns and budget
 
-Transactions are categorized based on:
-1. Transaction type patterns (e.g., "Salary" → Income)
-2. Merchant name patterns (e.g., "COFFEE" → Coffee Shops)
-3. Default fallback to "Uncategorized"
+### Pattern Optimization Workflow
 
-Current categories include:
+The project uses a pattern-based approach for transaction categorization, with patterns stored in `data/patterns.json`. To optimize categorization:
+
+1. Open the category optimization notebook:
+```bash
+jupyter notebook notebooks/category_optimization.ipynb
+```
+
+2. Review uncategorized transactions and identify patterns
+3. Edit patterns.json directly to add or refine regex patterns
+4. Re-run categorization to verify improvements
+
+## Current Categories
+
+The following categories are defined in `patterns.json`:
 - Income
-- Coffee Shops
-- Restaurants
 - Groceries
-- Shopping
-- Cash Withdrawal
-- Transfer
-- Uncategorized
+- Coffee Shops
+- Car Transaction
+- Transportation & Fuel
+- Servicing and Car Insurance
+- Sport
+- Utilities
+- Insurance
+- Healthcare
+- Bank Charges
+- Taxes
+- Home and Appliances
+- Internal Transfert
+- Cash
+- Family
+- Other
+- Entertainment
+- Subscription
+- Gift
+- Restaurants
 
-You can customize the categorization rules by modifying `config/categorization_rules.json`.
+Each category has associated regex patterns in `patterns.json` that match against transaction descriptions. Any transaction not matching these patterns remains uncategorized.
