@@ -75,7 +75,7 @@ def _get_existing_transactions(output_file: Path) -> pd.DataFrame:
 
 def _filter_new_transactions(new_df: pd.DataFrame, existing_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Remove duplicate transactions using vectorized operations.
+    Remove duplicate transactions.
 
     Args:
         new_df: DataFrame containing new transactions
@@ -87,30 +87,42 @@ def _filter_new_transactions(new_df: pd.DataFrame, existing_df: pd.DataFrame) ->
     if existing_df.empty:
         return new_df
 
-    # Split transactions based on reference number presence
-    with_ref = new_df[new_df['reference_number'].notna()]
-    without_ref = new_df[new_df['reference_number'].isna()]
+    # Create copies and ensure amount is float
+    new_df = new_df.copy()
+    existing_df = existing_df.copy()
 
-    # Filter transactions with references using vectorized operation
-    if not with_ref.empty:
-        unique_with_ref = with_ref[~with_ref['reference_number'].isin(existing_df['reference_number'])]
-    else:
-        unique_with_ref = pd.DataFrame(columns=new_df.columns)
+    # Convert amounts to float
+    new_df['amount'] = pd.to_numeric(new_df['amount'], errors='coerce')
+    existing_df['amount'] = pd.to_numeric(existing_df['amount'], errors='coerce')
 
-    # For transactions without references, use merge to identify duplicates
-    if not without_ref.empty:
+    # First try matching by reference number if available
+    unique_transactions = []
+
+    # For rows with reference numbers, use reference matching
+    mask_with_ref = new_df['reference_number'].notna()
+    if mask_with_ref.any():
+        refs = new_df.loc[mask_with_ref]
+        unique_transactions.append(
+            refs[~refs['reference_number'].isin(existing_df['reference_number'])]
+        )
+
+    # For rows without reference numbers, use all columns matching
+    mask_without_ref = ~mask_with_ref
+    if mask_without_ref.any():
+        no_refs = new_df.loc[mask_without_ref]
         merge_cols = ['transaction_date', 'description', 'amount']
-        merged = without_ref.merge(
+        merged = no_refs.merge(
             existing_df[merge_cols],
             how='left',
             indicator=True
         )
-        unique_without_ref = without_ref[merged['_merge'] == 'left_only']
-    else:
-        unique_without_ref = pd.DataFrame(columns=new_df.columns)
+        unique_transactions.append(
+            no_refs[no_refs.index.isin(
+                merged[merged['_merge'] == 'left_only'].index
+            )]
+        )
 
-    # Combine filtered results
-    result = pd.concat([unique_with_ref, unique_without_ref], ignore_index=True)
+    result = pd.concat(unique_transactions, ignore_index=True) if unique_transactions else pd.DataFrame(columns=new_df.columns)
 
     filtered_count = len(new_df) - len(result)
     if filtered_count > 0:

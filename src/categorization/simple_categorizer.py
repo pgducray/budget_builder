@@ -1,7 +1,9 @@
 """
 Simple rule-based transaction categorizer.
 """
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
+import json
+from pathlib import Path
 import pandas as pd
 import re
 
@@ -38,7 +40,30 @@ class SimpleTransactionCategorizer:
         """
         self.patterns = patterns or self.PATTERNS
 
-    def categorize_transaction(self, description: str) -> str:
+    @classmethod
+    def load_patterns(cls, path: str) -> Dict[str, str]:
+        """Load patterns from a JSON file."""
+        path = Path(path)
+        if path.exists():
+            with open(path) as f:
+                return json.load(f)
+        return cls.PATTERNS
+
+    def save_patterns(self, path: str) -> None:
+        """Save current patterns to a JSON file."""
+        with open(path, 'w') as f:
+            json.dump(self.patterns, f, indent=4)
+
+    def add_pattern(self, pattern: str, category: str) -> None:
+        """Add a new pattern-category mapping."""
+        self.patterns[pattern] = category
+
+    def remove_pattern(self, pattern: str) -> None:
+        """Remove a pattern from the mappings."""
+        if pattern in self.patterns:
+            del self.patterns[pattern]
+
+    def categorize_transaction(self, description: str) -> Tuple[str, Optional[str]]:
         """
         Categorize a single transaction based on its description.
 
@@ -46,13 +71,13 @@ class SimpleTransactionCategorizer:
             description: Transaction description text
 
         Returns:
-            Category name as string
+            Tuple of (category name, matching pattern or None if uncategorized)
         """
         for pattern, category in self.patterns.items():
             if re.search(pattern, description):
-                return category
+                return category, pattern
 
-        return 'Uncategorized'
+        return 'Uncategorized', None
 
     def categorize_transactions(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -62,10 +87,12 @@ class SimpleTransactionCategorizer:
             df: DataFrame with 'description' column
 
         Returns:
-            DataFrame with added 'Category' column
+            DataFrame with added 'Category' and 'Matching Pattern' columns
         """
         df = df.copy()
-        df['Category'] = df['description'].apply(self.categorize_transaction)
+        results = df['description'].apply(self.categorize_transaction)
+        df['Category'] = results.apply(lambda x: x[0])
+        df['Matching Pattern'] = results.apply(lambda x: x[1])
         return df
 
     def get_category_summary(self, df: pd.DataFrame) -> pd.DataFrame:

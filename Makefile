@@ -19,10 +19,11 @@ help:
 	@echo "  make setup     - Create required directories"
 	@echo "  make clean     - Remove processed files"
 	@echo "  make validate  - Check if required directories exist"
+	@echo "  make run       - Launch the Streamlit GUI"
 	@echo "  make help      - Show this help message"
 
 # Main targets
-.PHONY: process categorize setup validate clean
+.PHONY: process categorize setup validate clean run
 
 process: validate
 	$(PYTHON) $(SCRIPT_PATH)
@@ -40,3 +41,6 @@ validate:
 clean:
 	rm -f $(OUTPUT_FILE) $(CATEGORIZED_FILE)
 	rm -rf $(PROCESSED_DIR)/*
+
+run:
+	streamlit run gui.py

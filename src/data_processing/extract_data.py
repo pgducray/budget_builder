@@ -167,12 +167,12 @@ def format_transactions(df: pd.DataFrame) -> pd.DataFrame:
     debits = pd.to_numeric(
         clean_amount(df['DEBIT'].where(df['DEBIT'].notna() & (df['DEBIT'] != ''), '0')),
         errors='coerce'
-    )
+    ).fillna(0.0)
     credits = pd.to_numeric(
         clean_amount(df['CREDIT'].where(df['CREDIT'].notna() & (df['CREDIT'] != ''), '0')),
         errors='coerce'
-    )
-    result['amount'] = credits - debits
+    ).fillna(0.0)
+    result['amount'] = (credits - debits).astype(float)
 
     # Validate the processed data
     validate_transaction_data(result)
